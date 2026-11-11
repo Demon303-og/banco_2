@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: postgres-pvc }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 5Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      containers:
+      - name: postgres
+        # Requiere pull secret de registry.redhat.io; alternativa: quay.io/sclorg/postgresql-16-c9s
+        image: registry.redhat.io/rhel9/postgresql-16
+        ports: [{ containerPort: 5432 }]
+        env:
+        - { name: POSTGRESQL_USER, valueFrom: { secretKeyRef: { name: db-secret, key: DB_USER } } }
+        - { name: POSTGRESQL_PASSWORD, valueFrom: { secretKeyRef: { name: db-secret, key: DB_PASSWORD } } }
+        - { name: POSTGRESQL_DATABASE, valueFrom: { secretKeyRef: { name: db-secret, key: DB_NAME } } }
+        volumeMounts: [{ name: data, mountPath: /var/lib/pgsql/data }]
+        readinessProbe:
+          exec: { command: ["/usr/libexec/check-container"] }
+        resources:
+          requests: { cpu: 250m, memory: 512Mi }
+          limits: { cpu: "1", memory: 1Gi }
+      volumes:
+      - name: data
+        persistentVolumeClaim: { claimName: postgres-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres }
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432 }]

@@ -1,0 +1,37 @@
+# Denegar todo el tráfico entrante por defecto
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: deny-all-ingress }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# El router de OpenShift puede llegar al frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-router-to-frontend }
+spec:
+  podSelector: { matchLabels: { app: frontend } }
+  ingress:
+  - from:
+    - namespaceSelector: { matchLabels: { network.openshift.io/policy-group: ingress } }
+---
+# Frontend -> Backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-frontend-to-backend }
+spec:
+  podSelector: { matchLabels: { app: backend } }
+  ingress:
+  - from: [{ podSelector: { matchLabels: { app: frontend } } }]
+    ports: [{ port: 8000 }]
+---
+# Backend -> Postgres
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-backend-to-postgres }
+spec:
+  podSelector: { matchLabels: { app: postgres } }
+  ingress:
+  - from: [{ podSelector: { matchLabels: { app: backend } } }]
+    ports: [{ port: 5432 }]
